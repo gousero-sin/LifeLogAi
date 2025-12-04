@@ -185,7 +185,7 @@ entries.get('/date/:date', async (c) => {
   }
 });
 
-// Create or update entry
+// Create or update entry (with automatic AI processing)
 entries.post('/', async (c) => {
   const user = c.get('user');
 
@@ -251,6 +251,10 @@ entries.post('/', async (c) => {
 
       // Clear existing tags
       await c.env.DB.prepare('DELETE FROM entry_tags WHERE entry_id = ?').bind(entryId).run();
+      
+      // Clear existing insights for regeneration
+      await c.env.DB.prepare('DELETE FROM ai_insights WHERE entry_id = ?').bind(entryId).run();
+      await c.env.DB.prepare('DELETE FROM entry_emotions WHERE entry_id = ?').bind(entryId).run();
     } else {
       // Create new entry
       const result = await c.env.DB.prepare(`
@@ -296,9 +300,86 @@ entries.post('/', async (c) => {
       WHERE et.entry_id = ?
     `).bind(entryId).all<Tag>();
 
+    // ========== AUTO-GENERATE AI INSIGHTS ==========
+    let aiInsights = null;
+    
+    // Only generate if entry is not private
+    if (!is_private && entry) {
+      // Get user settings to check for API key
+      const settings = await c.env.DB.prepare(
+        'SELECT deepseek_api_key, ai_depth FROM user_settings WHERE user_id = ?'
+      ).bind(user.id).first<{ deepseek_api_key: string; ai_depth: string }>();
+
+      if (settings?.deepseek_api_key) {
+        try {
+          // Get recent entries for context
+          const { results: recentEntries } = await c.env.DB.prepare(`
+            SELECT * FROM entries 
+            WHERE user_id = ? AND entry_date < ? AND is_private = 0
+            ORDER BY entry_date DESC LIMIT 7
+          `).bind(user.id, entry_date).all<Entry>();
+
+          // Get frequent tags from recent entries
+          const { results: frequentTagsData } = await c.env.DB.prepare(`
+            SELECT t.name FROM tags t
+            JOIN entry_tags et ON t.id = et.tag_id
+            JOIN entries e ON et.entry_id = e.id
+            WHERE e.user_id = ? AND e.entry_date >= date(?, '-30 days')
+            GROUP BY t.id
+            ORDER BY COUNT(*) DESC
+            LIMIT 5
+          `).bind(user.id, entry_date).all<{ name: string }>();
+
+          // Calculate context
+          const validMoods = (recentEntries || []).filter(e => e.mood !== null).map(e => e.mood!);
+          const validSleep = (recentEntries || []).filter(e => e.sleep_hours !== null).map(e => e.sleep_hours!);
+          const validEnergy = (recentEntries || []).filter(e => e.energy !== null).map(e => e.energy!);
+
+          const context = {
+            recentEntries: recentEntries || [],
+            avgMood: validMoods.length ? validMoods.reduce((a, b) => a + b, 0) / validMoods.length : 5,
+            avgSleep: validSleep.length ? validSleep.reduce((a, b) => a + b, 0) / validSleep.length : 7,
+            avgEnergy: validEnergy.length ? validEnergy.reduce((a, b) => a + b, 0) / validEnergy.length : 5,
+            frequentTags: (frequentTagsData || []).map(t => t.name)
+          };
+
+          // Generate insights
+          aiInsights = await generateDailyInsights(
+            { apiKey: settings.deepseek_api_key, depth: (settings.ai_depth || 'medium') as any },
+            entry as Entry,
+            context
+          );
+
+          // Save insights to database
+          await c.env.DB.prepare(`
+            INSERT INTO ai_insights (user_id, entry_id, insight_type, content, metadata)
+            VALUES (?, ?, 'daily_summary', ?, ?)
+          `).bind(
+            user.id,
+            entryId,
+            JSON.stringify(aiInsights),
+            JSON.stringify({ generated_at: new Date().toISOString(), auto_generated: true })
+          ).run();
+
+          // Save detected emotions
+          if (aiInsights.emotions && aiInsights.emotions.length > 0) {
+            for (const emotion of aiInsights.emotions) {
+              await c.env.DB.prepare(
+                'INSERT INTO entry_emotions (entry_id, emotion) VALUES (?, ?)'
+              ).bind(entryId, emotion).run();
+            }
+          }
+        } catch (aiError) {
+          console.error('Auto AI insights error:', aiError);
+          // Don't fail the request if AI fails, just skip insights
+        }
+      }
+    }
+
     return c.json({
       ...entry,
-      tags: tags || []
+      tags: tags || [],
+      ai_insights: aiInsights
     }, existingEntry ? 200 : 201);
   } catch (error) {
     console.error('Create entry error:', error);

@@ -203,7 +203,10 @@ app.get('*', (c) => {
         settings: null,
         stats: null,
         isLoading: false,
-        discreteMode: false
+        discreteMode: false,
+        savingMessage: null,
+        latestInsights: null,
+        latestEntryId: null
       };
       
       // API Helper
@@ -372,7 +375,15 @@ app.get('*', (c) => {
       async function saveEntry(entryData) {
         try {
           state.isLoading = true;
+          state.savingMessage = 'Salvando entrada...';
           render();
+          
+          // Check if AI will process
+          const willProcessAI = state.settings?.has_api_key && !entryData.is_private;
+          if (willProcessAI) {
+            state.savingMessage = 'Salvando e gerando insights com IA...';
+            render();
+          }
           
           const data = await api.post('/entries', entryData);
           
@@ -384,8 +395,20 @@ app.get('*', (c) => {
             state.entries.unshift(data);
           }
           
-          showToast('Entrada salva com sucesso!', 'success');
-          state.currentView = 'home';
+          // Check if AI insights were generated
+          if (data.ai_insights) {
+            showToast('Entrada salva e insights gerados! ✨', 'success');
+            // Store latest insights for display
+            state.latestInsights = data.ai_insights;
+            state.latestEntryId = data.id;
+            state.currentView = 'insights-result';
+          } else if (willProcessAI) {
+            showToast('Entrada salva! (IA não disponível no momento)', 'warning');
+            state.currentView = 'home';
+          } else {
+            showToast('Entrada salva com sucesso!', 'success');
+            state.currentView = 'home';
+          }
           
           // Refresh stats
           const statsData = await api.get('/dashboard/stats?period=7');
@@ -394,6 +417,7 @@ app.get('*', (c) => {
           showToast(error.message, 'error');
         } finally {
           state.isLoading = false;
+          state.savingMessage = null;
           render();
         }
       }
@@ -840,12 +864,20 @@ app.get('*', (c) => {
                   </label>
                 </div>
                 
+                <!-- AI Notice -->
+                \${state.settings?.has_api_key && !document.getElementById('entry-private')?.checked ? \`
+                  <div class="flex items-center gap-2 p-3 bg-primary-50 dark:bg-primary-900/30 rounded-lg text-sm text-primary-700 dark:text-primary-300">
+                    <i class="fas fa-robot"></i>
+                    <span>A IA irá analisar automaticamente e gerar insights para esta entrada.</span>
+                  </div>
+                \` : ''}
+                
                 <!-- Submit -->
                 <div class="flex gap-3">
-                  <button type="button" onclick="handleSaveEntry()" class="flex-1 bg-primary-500 hover:bg-primary-600 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center gap-2">
-                    \${state.isLoading ? '<div class="loading-spinner"></div>' : '<i class="fas fa-save"></i> Salvar entrada'}
+                  <button type="button" onclick="handleSaveEntry()" class="flex-1 bg-primary-500 hover:bg-primary-600 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center gap-2" \${state.isLoading ? 'disabled' : ''}>
+                    \${state.isLoading ? \`<div class="loading-spinner"></div> \${state.savingMessage || 'Salvando...'}\` : '<i class="fas fa-save"></i> Salvar entrada'}
                   </button>
-                  <button type="button" onclick="state.currentView = 'home'; render();" class="px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                  <button type="button" onclick="state.currentView = 'home'; render();" class="px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" \${state.isLoading ? 'disabled' : ''}>
                     Cancelar
                   </button>
                 </div>
@@ -1333,6 +1365,104 @@ app.get('*', (c) => {
         \`;
       }
       
+      // Render AI Insights Result Page (shown after saving entry with AI)
+      function renderInsightsResultPage() {
+        const insights = state.latestInsights;
+        const entry = state.entries.find(e => e.id === state.latestEntryId);
+        
+        if (!insights || !entry) {
+          state.currentView = 'home';
+          render();
+          return '';
+        }
+        
+        return \`
+          \${renderNav()}
+          <main class="max-w-2xl mx-auto px-4 py-6">
+            <div class="bg-gradient-to-br from-primary-500 to-purple-600 rounded-2xl p-6 text-white mb-6 fade-in">
+              <div class="flex items-center gap-3 mb-4">
+                <div class="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
+                  <i class="fas fa-brain text-2xl"></i>
+                </div>
+                <div>
+                  <h1 class="text-xl font-bold">Insights Gerados! ✨</h1>
+                  <p class="text-white/80 text-sm">\${formatDate(entry.entry_date)}</p>
+                </div>
+              </div>
+              <p class="text-white/90">A IA analisou sua entrada e gerou insights personalizados para você.</p>
+            </div>
+            
+            <!-- Summary -->
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm mb-4 fade-in">
+              <h2 class="font-semibold text-gray-800 dark:text-white mb-3 flex items-center gap-2">
+                <i class="fas fa-file-alt text-primary-500"></i>Resumo do Dia
+              </h2>
+              <p class="text-gray-600 dark:text-gray-300">\${insights.summary || 'Nenhum resumo disponível.'}</p>
+            </div>
+            
+            <!-- Insights -->
+            \${insights.insights?.length ? \`
+              <div class="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm mb-4 fade-in">
+                <h2 class="font-semibold text-gray-800 dark:text-white mb-3 flex items-center gap-2">
+                  <i class="fas fa-lightbulb text-yellow-500"></i>Insights
+                </h2>
+                <ul class="space-y-2">
+                  \${insights.insights.map(insight => \`
+                    <li class="flex items-start gap-2 text-gray-600 dark:text-gray-300">
+                      <i class="fas fa-check-circle text-green-500 mt-1 flex-shrink-0"></i>
+                      <span>\${insight}</span>
+                    </li>
+                  \`).join('')}
+                </ul>
+              </div>
+            \` : ''}
+            
+            <!-- Tomorrow Plan -->
+            \${insights.tomorrowPlan?.length ? \`
+              <div class="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm mb-4 fade-in">
+                <h2 class="font-semibold text-gray-800 dark:text-white mb-3 flex items-center gap-2">
+                  <i class="fas fa-calendar-check text-blue-500"></i>Plano para Amanhã
+                </h2>
+                <ul class="space-y-2">
+                  \${insights.tomorrowPlan.map((task, i) => \`
+                    <li class="flex items-start gap-2 text-gray-600 dark:text-gray-300">
+                      <span class="w-6 h-6 bg-primary-100 dark:bg-primary-900 text-primary-600 dark:text-primary-300 rounded-full flex items-center justify-center text-sm font-medium flex-shrink-0">\${i + 1}</span>
+                      <span>\${task}</span>
+                    </li>
+                  \`).join('')}
+                </ul>
+              </div>
+            \` : ''}
+            
+            <!-- Emotions -->
+            \${insights.emotions?.length ? \`
+              <div class="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm mb-4 fade-in">
+                <h2 class="font-semibold text-gray-800 dark:text-white mb-3 flex items-center gap-2">
+                  <i class="fas fa-heart text-red-500"></i>Emoções Detectadas
+                </h2>
+                <div class="flex flex-wrap gap-2">
+                  \${insights.emotions.map(emotion => \`
+                    <span class="px-3 py-1 bg-primary-100 dark:bg-primary-900 text-primary-600 dark:text-primary-300 rounded-full text-sm font-medium">
+                      \${emotion}
+                    </span>
+                  \`).join('')}
+                </div>
+              </div>
+            \` : ''}
+            
+            <!-- Actions -->
+            <div class="flex gap-3 mt-6">
+              <button onclick="state.currentView = 'home'; render();" class="flex-1 bg-primary-500 hover:bg-primary-600 text-white font-semibold py-3 rounded-lg transition-colors">
+                <i class="fas fa-home mr-2"></i>Ir para Home
+              </button>
+              <button onclick="viewEntry(state.latestEntryId)" class="px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                <i class="fas fa-eye mr-2"></i>Ver Entrada
+              </button>
+            </div>
+          </main>
+        \`;
+      }
+      
       async function toggleFavorite(entryId) {
         try {
           const data = await api.patch('/entries/' + entryId + '/favorite');
@@ -1374,6 +1504,9 @@ app.get('*', (c) => {
             break;
           case 'view-entry':
             app.innerHTML = renderViewEntryPage();
+            break;
+          case 'insights-result':
+            app.innerHTML = renderInsightsResultPage();
             break;
           default:
             app.innerHTML = renderHomePage();
