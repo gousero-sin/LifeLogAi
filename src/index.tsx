@@ -123,67 +123,66 @@ app.get('*', (c) => {
         color: var(--paper-white);
       }
       
-      /* ========== Animated River Background ========== */
-      #river-bg {
+      /* ========== Subtle Background Pattern ========== */
+      body::before {
+        content: '';
         position: fixed;
         top: 0;
         left: 0;
         width: 100%;
         height: 100%;
         z-index: -1;
-        opacity: 0.6;
-      }
-      
-      /* Cloud Pattern Overlay */
-      .cloud-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        z-index: -1;
+        opacity: 0.03;
+        background-image: radial-gradient(circle at 20% 50%, var(--mist-blue) 0%, transparent 50%),
+                          radial-gradient(circle at 80% 80%, var(--mist-blue) 0%, transparent 50%);
         pointer-events: none;
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 200'%3E%3Cpath fill='%23b0c4de' fill-opacity='0.1' d='M0,100 Q100,50 200,100 T400,100 T600,100 T800,100 T1000,100 L1000,200 L0,200 Z'%3E%3Canimate attributeName='d' dur='20s' repeatCount='indefinite' values='M0,100 Q100,50 200,100 T400,100 T600,100 T800,100 T1000,100 L1000,200 L0,200 Z;M0,100 Q100,150 200,100 T400,100 T600,100 T800,100 T1000,100 L1000,200 L0,200 Z;M0,100 Q100,50 200,100 T400,100 T600,100 T800,100 T1000,100 L1000,200 L0,200 Z'/%3E%3C/path%3E%3C/svg%3E");
-        background-size: cover;
-        animation: floatClouds 30s ease-in-out infinite;
       }
       
-      @keyframes floatClouds {
-        0%, 100% { transform: translateX(0); }
-        50% { transform: translateX(-20px); }
-      }
-      
-      /* Ink Cursor */
+      /* Ink Cursor - Realistic Brush Effect */
       .ink-cursor {
         position: fixed;
-        width: 24px;
-        height: 24px;
+        width: 12px;
+        height: 12px;
         border-radius: 50%;
-        background: var(--void-black);
-        opacity: 0.7;
+        background: radial-gradient(circle, var(--void-black) 0%, transparent 70%);
+        opacity: 0;
         pointer-events: none;
         z-index: 9999;
         mix-blend-mode: multiply;
-        transition: transform 0.1s ease-out, opacity 0.2s;
-        filter: blur(1px);
+        transition: opacity 0.15s ease-out, transform 0.08s ease-out;
+      }
+      
+      .ink-cursor.active {
+        opacity: 0.6;
       }
       
       .ink-cursor.hovering {
-        transform: scale(1.5);
-        opacity: 0.9;
+        transform: scale(1.8);
+        opacity: 0.8 !important;
       }
       
-      .ink-cursor-trail {
+      /* Ink Trail - Particles */
+      .ink-particle {
         position: fixed;
-        width: 32px;
-        height: 32px;
+        width: 8px;
+        height: 8px;
         border-radius: 50%;
-        background: var(--mist-blue);
-        opacity: 0.3;
+        background: radial-gradient(circle, var(--void-black) 0%, var(--mist-blue) 50%, transparent 70%);
         pointer-events: none;
         z-index: 9998;
-        filter: blur(8px);
-        transition: transform 0.2s ease-out;
+        mix-blend-mode: multiply;
+        animation: fadeInkParticle 0.8s ease-out forwards;
+      }
+      
+      @keyframes fadeInkParticle {
+        0% {
+          opacity: 0.5;
+          transform: scale(1);
+        }
+        100% {
+          opacity: 0;
+          transform: scale(0.3);
+        }
       }
       
       /* ========== Layout Components ========== */
@@ -802,124 +801,65 @@ app.get('*', (c) => {
     
     <!-- Ink Cursor -->
     <div class="ink-cursor" id="inkCursor"></div>
-    <div class="ink-cursor-trail" id="inkCursorTrail"></div>
-    
-    <!-- Cloud Overlay -->
-    <div class="cloud-overlay"></div>
-    
-    <!-- River Background Canvas -->
-    <canvas id="river-bg"></canvas>
     
     <script>
       // Initialize dayjs
       dayjs.locale('pt-br');
       
-      // ========== Ink Cursor ==========
+      // ========== Optimized Ink Cursor with Particles ==========
       const cursor = document.getElementById('inkCursor');
-      const cursorTrail = document.getElementById('inkCursorTrail');
-      let cursorX = -100, cursorY = -100;
-      let trailX = -100, trailY = -100;
+      let lastX = 0, lastY = 0;
+      let particleCount = 0;
+      const MAX_PARTICLES = 30; // Limit particles for performance
+      let lastParticleTime = 0;
       
+      // Show cursor on first move
       document.addEventListener('mousemove', (e) => {
-        cursorX = e.clientX - 12;
-        cursorY = e.clientY - 12;
+        cursor.classList.add('active');
+        cursor.style.left = (e.clientX - 6) + 'px';
+        cursor.style.top = (e.clientY - 6) + 'px';
+        
+        // Create ink particle trail (throttled)
+        const now = Date.now();
+        const distance = Math.hypot(e.clientX - lastX, e.clientY - lastY);
+        
+        if (distance > 20 && now - lastParticleTime > 50 && particleCount < MAX_PARTICLES) {
+          createInkParticle(e.clientX, e.clientY);
+          lastParticleTime = now;
+        }
+        
+        lastX = e.clientX;
+        lastY = e.clientY;
       });
       
+      // Hover effect
       document.addEventListener('mouseover', (e) => {
-        if (e.target.tagName === 'BUTTON' || e.target.tagName === 'A' || e.target.classList.contains('clickable')) {
+        if (e.target.tagName === 'BUTTON' || 
+            e.target.tagName === 'A' || 
+            e.target.classList.contains('clickable') ||
+            e.target.closest('button') ||
+            e.target.closest('a')) {
           cursor.classList.add('hovering');
         } else {
           cursor.classList.remove('hovering');
         }
       });
       
-      function animateCursor() {
-        cursor.style.left = cursorX + 'px';
-        cursor.style.top = cursorY + 'px';
+      // Create ink particle
+      function createInkParticle(x, y) {
+        const particle = document.createElement('div');
+        particle.className = 'ink-particle';
+        particle.style.left = (x - 4 + Math.random() * 8) + 'px';
+        particle.style.top = (y - 4 + Math.random() * 8) + 'px';
+        document.body.appendChild(particle);
+        particleCount++;
         
-        trailX += (cursorX - trailX) * 0.15;
-        trailY += (cursorY - trailY) * 0.15;
-        cursorTrail.style.left = trailX + 'px';
-        cursorTrail.style.top = trailY + 'px';
-        
-        requestAnimationFrame(animateCursor);
+        // Remove after animation
+        setTimeout(() => {
+          particle.remove();
+          particleCount--;
+        }, 800);
       }
-      animateCursor();
-      
-      // ========== River Background ==========
-      const canvas = document.getElementById('river-bg');
-      const ctx = canvas.getContext('2d');
-      let time = 0;
-      
-      function resizeCanvas() {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-      }
-      resizeCanvas();
-      window.addEventListener('resize', resizeCanvas);
-      
-      // Simplex noise approximation
-      function noise(x, y, t) {
-        return Math.sin(x * 0.01 + t) * Math.cos(y * 0.01 + t * 0.5) * 0.5 +
-               Math.sin(x * 0.02 - t * 0.3) * Math.cos(y * 0.015 + t * 0.7) * 0.3 +
-               Math.sin(x * 0.005 + y * 0.005 + t * 0.2) * 0.2;
-      }
-      
-      function drawRiver() {
-        time += 0.005;
-        
-        const imageData = ctx.createImageData(canvas.width, canvas.height);
-        const data = imageData.data;
-        
-        // Colors
-        const paperWhite = { r: 244, g: 241, b: 234 };
-        const mistBlue = { r: 176, g: 196, b: 222 };
-        const inkBlack = { r: 10, g: 10, b: 10 };
-        
-        for (let y = 0; y < canvas.height; y += 4) {
-          for (let x = 0; x < canvas.width; x += 4) {
-            const n = noise(x, y, time);
-            const flow = noise(x * 2, y * 2, time * 2) * 0.5 + 0.5;
-            
-            // Mix colors
-            let r, g, b;
-            if (n > 0.3) {
-              // Mist blue areas
-              const t = (n - 0.3) / 0.7;
-              r = paperWhite.r + (mistBlue.r - paperWhite.r) * t * 0.5;
-              g = paperWhite.g + (mistBlue.g - paperWhite.g) * t * 0.5;
-              b = paperWhite.b + (mistBlue.b - paperWhite.b) * t * 0.5;
-            } else {
-              r = paperWhite.r;
-              g = paperWhite.g;
-              b = paperWhite.b;
-            }
-            
-            // Add subtle ink
-            if (flow > 0.7) {
-              const inkAmount = (flow - 0.7) / 0.3 * 0.1;
-              r = r * (1 - inkAmount) + inkBlack.r * inkAmount;
-              g = g * (1 - inkAmount) + inkBlack.g * inkAmount;
-              b = b * (1 - inkAmount) + inkBlack.b * inkAmount;
-            }
-            
-            // Fill 4x4 block
-            for (let dy = 0; dy < 4 && y + dy < canvas.height; dy++) {
-              for (let dx = 0; dx < 4 && x + dx < canvas.width; dx++) {
-                const i = ((y + dy) * canvas.width + (x + dx)) * 4;
-                data[i] = r;
-                data[i + 1] = g;
-                data[i + 2] = b;
-                data[i + 3] = 255;
-              }
-            }
-          }
-        }
-        
-        ctx.putImageData(imageData, 0, 0);
-        requestAnimationFrame(drawRiver);
-      }
-      drawRiver();
       
       // ========== App State ==========
       const state = {
