@@ -138,50 +138,34 @@ app.get('*', (c) => {
         pointer-events: none;
       }
       
-      /* Ink Cursor - Realistic Brush Effect */
-      .ink-cursor {
-        position: fixed;
-        width: 12px;
-        height: 12px;
-        border-radius: 50%;
-        background: radial-gradient(circle, var(--void-black) 0%, transparent 70%);
-        opacity: 0;
+      /* Goo Morphing Cursor */
+      #goo-cursor {
         pointer-events: none;
-        z-index: 9999;
-        mix-blend-mode: multiply;
-        transition: opacity 0.15s ease-out, transform 0.08s ease-out;
-      }
-      
-      .ink-cursor.active {
-        opacity: 0.6;
-      }
-      
-      .ink-cursor.hovering {
-        transform: scale(1.8);
-        opacity: 0.8 !important;
-      }
-      
-      /* Ink Trail - Particles */
-      .ink-particle {
         position: fixed;
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: radial-gradient(circle, var(--void-black) 0%, var(--mist-blue) 50%, transparent 70%);
-        pointer-events: none;
-        z-index: 9998;
-        mix-blend-mode: multiply;
-        animation: fadeInkParticle 0.8s ease-out forwards;
+        display: block;
+        border-radius: 0;
+        transform-origin: center center;
+        top: 0;
+        left: 0;
+        z-index: 10000;
+        filter: url("#goo");
       }
       
-      @keyframes fadeInkParticle {
-        0% {
-          opacity: 0.5;
-          transform: scale(1);
-        }
-        100% {
-          opacity: 0;
-          transform: scale(0.3);
+      #goo-cursor span {
+        position: absolute;
+        display: block;
+        width: 26px;
+        height: 26px;
+        border-radius: 20px;
+        background-color: var(--void-black);
+        transform-origin: center center;
+        transform: translate(-50%, -50%);
+      }
+      
+      /* Hide default cursor on desktop */
+      @media (pointer: fine) {
+        * {
+          cursor: none !important;
         }
       }
       
@@ -338,7 +322,7 @@ app.get('*', (c) => {
         opacity: 0.8;
       }
       
-      /* ========== Buttons ========== */
+      /* ========== Buttons with Slide Animation ========== */
       .btn {
         padding: 0.75rem 1.5rem;
         border-radius: 2rem;
@@ -349,16 +333,35 @@ app.get('*', (c) => {
         font-size: 1rem;
         font-weight: 500;
         cursor: pointer;
-        transition: all 0.3s ease;
         display: inline-flex;
         align-items: center;
         gap: 0.5rem;
+        position: relative;
+        overflow: hidden;
+        z-index: 1;
+        transition: color 0.4s ease;
+      }
+      
+      .btn::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 125%;
+        height: 100%;
+        background: var(--void-black);
+        transform: translateX(-112%) skew(-10deg);
+        transform-origin: right;
+        transition: transform 0.65s cubic-bezier(0.77, 0, 0.175, 1);
+        z-index: -1;
+      }
+      
+      .btn:hover::before {
+        transform: translateX(-12%) skew(-10deg);
       }
       
       .btn:hover {
-        background: var(--void-black);
         color: var(--paper-white);
-        transform: translateY(-2px);
       }
       
       .btn-primary {
@@ -367,9 +370,13 @@ app.get('*', (c) => {
         border-color: var(--void-black);
       }
       
-      .btn-primary:hover {
+      .btn-primary::before {
         background: var(--cinnabar-red);
-        border-color: var(--cinnabar-red);
+        transform: translateX(-112%) skew(-10deg);
+      }
+      
+      .btn-primary:hover::before {
+        transform: translateX(-12%) skew(-10deg);
       }
       
       .btn-ghost {
@@ -377,10 +384,12 @@ app.get('*', (c) => {
         color: var(--ink-gray);
       }
       
-      .btn-ghost:hover {
+      .btn-ghost::before {
         background: var(--shadow-ink);
+      }
+      
+      .btn-ghost:hover {
         color: var(--void-black);
-        border-color: transparent;
       }
       
       .btn-cinnabar {
@@ -389,9 +398,8 @@ app.get('*', (c) => {
         color: var(--paper-white);
       }
       
-      .btn-cinnabar:hover {
+      .btn-cinnabar::before {
         background: #8a3430;
-        border-color: #8a3430;
       }
       
       /* ========== Forms ========== */
@@ -797,68 +805,144 @@ app.get('*', (c) => {
     </style>
 </head>
 <body>
+    <!-- SVG Goo Filter -->
+    <svg xmlns="http://www.w3.org/2000/svg" version="1.1" style="position: absolute; width: 0; height: 0;">
+      <defs>
+        <filter id="goo">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur" />
+          <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 35 -15" result="goo" />
+          <feComposite in="SourceGraphic" in2="goo" operator="atop"/>
+        </filter>
+      </defs>
+    </svg>
+    
     <div id="app"></div>
     
-    <!-- Ink Cursor -->
-    <div class="ink-cursor" id="inkCursor"></div>
+    <!-- Goo Morphing Cursor -->
+    <div id="goo-cursor"></div>
     
     <script>
       // Initialize dayjs
       dayjs.locale('pt-br');
       
-      // ========== Optimized Ink Cursor with Particles ==========
-      const cursor = document.getElementById('inkCursor');
-      let lastX = 0, lastY = 0;
-      let particleCount = 0;
-      const MAX_PARTICLES = 30; // Limit particles for performance
-      let lastParticleTime = 0;
+      // ========== Goo Morphing Cursor ==========
+      const gooCursor = document.getElementById('goo-cursor');
+      const amount = 20;
+      const sineDots = Math.floor(amount * 0.3);
+      const width = 26;
+      const idleTimeout = 150;
+      let lastFrame = 0;
+      let mousePosition = {x: 0, y: 0};
+      let dots = [];
+      let timeoutID;
+      let idle = false;
       
-      // Show cursor on first move
-      document.addEventListener('mousemove', (e) => {
-        cursor.classList.add('active');
-        cursor.style.left = (e.clientX - 6) + 'px';
-        cursor.style.top = (e.clientY - 6) + 'px';
-        
-        // Create ink particle trail (throttled)
-        const now = Date.now();
-        const distance = Math.hypot(e.clientX - lastX, e.clientY - lastY);
-        
-        if (distance > 20 && now - lastParticleTime > 50 && particleCount < MAX_PARTICLES) {
-          createInkParticle(e.clientX, e.clientY);
-          lastParticleTime = now;
+      // Only enable on desktop (pointer: fine)
+      const isDesktop = window.matchMedia('(pointer: fine)').matches;
+      
+      if (!isDesktop) {
+        gooCursor.style.display = 'none';
+      }
+      
+      class Dot {
+        constructor(index = 0) {
+          this.index = index;
+          this.anglespeed = 0.05;
+          this.x = 0;
+          this.y = 0;
+          this.scale = 1 - 0.05 * index;
+          this.range = width / 2 - width / 2 * this.scale + 2;
+          this.limit = width * 0.75 * this.scale;
+          this.element = document.createElement('span');
+          this.element.style.transform = \`scale(\${this.scale})\`;
+          gooCursor.appendChild(this.element);
         }
         
-        lastX = e.clientX;
-        lastY = e.clientY;
-      });
-      
-      // Hover effect
-      document.addEventListener('mouseover', (e) => {
-        if (e.target.tagName === 'BUTTON' || 
-            e.target.tagName === 'A' || 
-            e.target.classList.contains('clickable') ||
-            e.target.closest('button') ||
-            e.target.closest('a')) {
-          cursor.classList.add('hovering');
-        } else {
-          cursor.classList.remove('hovering');
+        lock() {
+          this.lockX = this.x;
+          this.lockY = this.y;
+          this.angleX = Math.PI * 2 * Math.random();
+          this.angleY = Math.PI * 2 * Math.random();
         }
-      });
-      
-      // Create ink particle
-      function createInkParticle(x, y) {
-        const particle = document.createElement('div');
-        particle.className = 'ink-particle';
-        particle.style.left = (x - 4 + Math.random() * 8) + 'px';
-        particle.style.top = (y - 4 + Math.random() * 8) + 'px';
-        document.body.appendChild(particle);
-        particleCount++;
         
-        // Remove after animation
-        setTimeout(() => {
-          particle.remove();
-          particleCount--;
-        }, 800);
+        draw(delta) {
+          if (!idle || this.index <= sineDots) {
+            this.element.style.transform = \`translate(\${this.x}px, \${this.y}px) scale(\${this.scale})\`;
+          } else {
+            this.angleX += this.anglespeed;
+            this.angleY += this.anglespeed;
+            this.y = this.lockY + Math.sin(this.angleY) * this.range;
+            this.x = this.lockX + Math.sin(this.angleX) * this.range;
+            this.element.style.transform = \`translate(\${this.x}px, \${this.y}px) scale(\${this.scale})\`;
+          }
+        }
+      }
+      
+      function buildDots() {
+        for (let i = 0; i < amount; i++) {
+          dots.push(new Dot(i));
+        }
+      }
+      
+      function startIdleTimer() {
+        timeoutID = setTimeout(goInactive, idleTimeout);
+        idle = false;
+      }
+      
+      function resetIdleTimer() {
+        clearTimeout(timeoutID);
+        startIdleTimer();
+      }
+      
+      function goInactive() {
+        idle = true;
+        dots.forEach(dot => dot.lock());
+      }
+      
+      const onMouseMove = (e) => {
+        mousePosition.x = e.clientX - width / 2;
+        mousePosition.y = e.clientY - width / 2;
+        resetIdleTimer();
+      };
+      
+      const onTouchMove = (e) => {
+        mousePosition.x = e.touches[0].clientX - width / 2;
+        mousePosition.y = e.touches[0].clientY - width / 2;
+        resetIdleTimer();
+      };
+      
+      const render = (timestamp) => {
+        const delta = timestamp - lastFrame;
+        positionCursor(delta);
+        lastFrame = timestamp;
+        requestAnimationFrame(render);
+      };
+      
+      const positionCursor = (delta) => {
+        let x = mousePosition.x;
+        let y = mousePosition.y;
+        
+        dots.forEach((dot, index, dots) => {
+          let nextDot = dots[index + 1] || dots[0];
+          dot.x = x;
+          dot.y = y;
+          dot.draw(delta);
+          
+          if (!idle || index <= sineDots) {
+            const dx = (nextDot.x - dot.x) * 0.35;
+            const dy = (nextDot.y - dot.y) * 0.35;
+            x += dx;
+            y += dy;
+          }
+        });
+      };
+      
+      if (isDesktop) {
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('touchmove', onTouchMove);
+        buildDots();
+        lastFrame = Date.now();
+        render(lastFrame);
       }
       
       // ========== App State ==========
