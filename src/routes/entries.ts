@@ -376,10 +376,21 @@ entries.post('/', async (c) => {
       }
     }
 
+    // Get saved insights from database (for consistency)
+    const { results: insights } = await c.env.DB.prepare(
+      'SELECT * FROM ai_insights WHERE entry_id = ? ORDER BY created_at DESC'
+    ).bind(entryId).all();
+
+    const { results: emotions } = await c.env.DB.prepare(
+      'SELECT * FROM entry_emotions WHERE entry_id = ?'
+    ).bind(entryId).all();
+
     return c.json({
       ...entry,
       tags: tags || [],
-      ai_insights: aiInsights
+      insights: insights || [],
+      emotions: emotions || [],
+      ai_insights: aiInsights // Keep this for the insights result page
     }, existingEntry ? 200 : 201);
   } catch (error) {
     console.error('Create entry error:', error);
