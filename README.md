@@ -1,6 +1,15 @@
-# LifeLog IA - Life Goes On A.I. 📖
+# LifeLog IA - Life Goes On A.I. ☁️
 
 Seu diário inteligente que entende sua vida, analisa padrões e te ajuda a viver melhor.
+
+## 🎨 Design: CloudyNC (Neo-Chinese Cloud Aesthetic)
+
+O LifeLog IA apresenta uma estética neo-chinesa única chamada **CloudyNC**, inspirada em arte de nanquim tradicional com elementos modernos:
+
+- **Paleta de Cores**: Paper White (#f4f1ea), Void Black (#0a0a0a), Mist Blue (#b0c4de), Cinnabar Red (#a83f39)
+- **Tipografia**: Cormorant Garamond (títulos) + Inter (corpo)
+- **Animações**: Cursor de tinta fluido, fundo de rio animado, nuvens flutuantes
+- **Elementos**: Cards com sombras sutis, divisores de nuvem, tags coloridas
 
 ## 🌟 Visão Geral
 
@@ -151,11 +160,16 @@ entry_emotions     -- Emoções detectadas por entrada
 4. Salve a configuração
 5. Agora você pode gerar insights nas suas entradas!
 
-### 4. Gerar Insights
-1. Abra uma entrada existente
-2. Clique em "Gerar" na seção de Insights da IA
-3. A IA analisará sua entrada e histórico recente
-4. Você receberá: resumo, insights e plano para amanhã
+### 4. Gerar Insights (Automático!)
+1. Configure sua API key nas configurações
+2. Ao salvar uma entrada (não privada), a IA processa automaticamente
+3. Você será redirecionado para a tela de resultados com:
+   - 📄 Resumo do dia
+   - 💡 Insights emocionais e contextuais
+   - 📅 Plano prático para amanhã
+   - ❤️ Emoções detectadas
+
+**Observação**: Entradas marcadas como "privadas" não são enviadas para processamento da IA.
 
 ## 🚀 Funcionalidades Futuras
 
@@ -171,13 +185,16 @@ entry_emotions     -- Emoções detectadas por entrada
 
 ## 🛠️ Stack Tecnológica
 
-- **Frontend**: HTML5, TailwindCSS, JavaScript vanilla
-- **Backend**: Hono Framework
+- **Frontend**: HTML5, CSS3 vanilla com design system CloudyNC, JavaScript ES6+
+- **Backend**: Hono Framework (TypeScript)
 - **Banco de Dados**: Cloudflare D1 (SQLite)
 - **Plataforma**: Cloudflare Pages/Workers
 - **IA**: DeepSeek API
 - **Charts**: Chart.js
-- **Datas**: Day.js
+- **Datas**: Day.js (pt-BR)
+- **Ícones**: Font Awesome 6
+- **Fontes**: Google Fonts (Cormorant Garamond, Inter)
+- **Versão Atual**: 2.0.0 (CloudyNC Theme)
 
 ## 📋 Deployment
 
