@@ -912,11 +912,11 @@ app.get('*', (c) => {
         resetIdleTimer();
       };
       
-      const render = (timestamp) => {
+      const renderCursor = (timestamp) => {
         const delta = timestamp - lastFrame;
         positionCursor(delta);
         lastFrame = timestamp;
-        requestAnimationFrame(render);
+        requestAnimationFrame(renderCursor);
       };
       
       const positionCursor = (delta) => {
@@ -943,7 +943,7 @@ app.get('*', (c) => {
         window.addEventListener('touchmove', onTouchMove);
         buildDots();
         lastFrame = Date.now();
-        render(lastFrame);
+        renderCursor(lastFrame);
       }
       
       // ========== WebGL Mountain Background ==========
