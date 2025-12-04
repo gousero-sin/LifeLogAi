@@ -5,17 +5,17 @@
   "pages_build_output_dir": "./dist",
   "compatibility_flags": ["nodejs_compat"],
   
-  // D1 Database configuration
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "lifelog-production",
-      "database_id": "placeholder-id-configure-after-deploy"
-    }
-  ],
-  
   // Environment variables
   "vars": {
     "JWT_SECRET": "lifelog-development-secret-change-in-production"
   }
+  
+  // IMPORTANTE: Para habilitar o banco de dados D1:
+  // 1. Acesse https://dash.cloudflare.com/
+  // 2. Vá em Workers & Pages > D1 > Create database
+  // 3. Crie um banco chamado "lifelog-production"
+  // 4. Copie o database_id gerado
+  // 5. Vá em Workers & Pages > lifelog-ia > Settings > Functions > D1 Bindings
+  // 6. Adicione: Variable name = DB, D1 database = lifelog-production
+  // 7. Execute as migrations pelo wrangler ou pelo dashboard
 }
